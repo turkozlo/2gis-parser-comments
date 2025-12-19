@@ -1,0 +1,12 @@
+{
+    "mistral_api_key": "YOUR_MISTRAL_API_KEY",
+    "mistral_model": "mistral-small-latest",
+    "telegram_bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "email": {
+        "sender_email": "your_email@gmail.com",
+        "sender_password": "your_app_password",
+        "recipient_email": "recipient_email@example.com",
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587
+    }
+}
