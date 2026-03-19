@@ -57,7 +57,7 @@ def parse_date(date_str):
 
 def parse_reviews():
     input_csv = 'sberbank_DVB_VSP.csv'
-    output_csv = 'sberbank_all_reviews.csv'
+    output_csv = 'sberbank_reviews_january_2026.csv'  # Dedicated file for January
     
     # Обработка новых подписчиков (все /start команды что пришли пока бот был выключен)
     print("=" * 60)
@@ -66,7 +66,7 @@ def parse_reviews():
     process_subscriptions()
     
     print("\n" + "=" * 60)
-    print("ПАРСИНГ ОТЗЫВОВ")
+    print("ПАРСИНГ ОТЗЫВОВ (ТОЛЬКО ЯНВАРЬ 2026)")
     print("=" * 60 + "\n")
     
     try:
@@ -75,28 +75,17 @@ def parse_reviews():
         print(f"File {input_csv} not found.")
         return
 
-    # Загружаем последние даты для каждого отделения (оптимизация)
+    # Для этого запуска мы НЕ загружаем старые отзывы, чтобы файл был чистым
     branch_latest_dates = {}
-    if os.path.exists(output_csv):
-        try:
-            existing_df = pd.read_csv(output_csv)
-            print(f"Загружено {len(existing_df)} существующих отзывов", flush=True)
-            # Для каждого отделения находим последнюю (самую новую) дату
-            for branch_url in existing_df['Branch URL'].unique():
-                branch_reviews = existing_df[existing_df['Branch URL'] == branch_url]
-                # Находим самую свежую дату (максимальную)
-                latest_date = branch_reviews['Date'].max()
-                branch_latest_dates[branch_url] = latest_date
-                print(f"  Отделение {branch_url}: последняя дата = {latest_date}", flush=True)
-        except Exception as e:
-            print(f"Ошибка при загрузке существующих отзывов: {e}", flush=True)
+    print(f"Парсинг будет сохранен в НОВЫЙ файл: {output_csv}", flush=True)
 
     all_reviews = []
 
     with sync_playwright() as p:
         # Запускаем браузер с аргументами для обхода детектирования (БЕЗ slow_mo)
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
+
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--disable-dev-shm-usage',
@@ -246,13 +235,21 @@ def parse_reviews():
                         else:
                             print(f"  [Review {rev_index}] No avatar found in review", flush=True)
 
-                        # ОПТИМИЗАЦИЯ: Проверка даты (вместо дубликатов)
-                        # Если у нас есть последняя известная дата для этого отделения
-                        if latest_known_date and date:
-                            # Если текущий отзыв старше или равен последней известной дате
-                            if date <= latest_known_date:
-                                print(f"  [Review {rev_index}] Достигнута известная дата ({date} <= {latest_known_date}), останавливаем парсинг этого отделения", flush=True)
-                                break  # Прекращаем парсинг этого отделения
+                        # ФИЛЬТР ПО ДАТЕ (Январь 2026)
+                        if date:
+                            if date > "2026-01-31":
+                                print(f"  [Review {rev_index}] Отзыв новее января 2026 ({date}), пропускаем...", flush=True)
+                                continue
+                            if date < "2026-01-01":
+                                print(f"  [Review {rev_index}] Достигнута дата до января 2026 ({date}), останавливаем парсинг этого отделения", flush=True)
+                                break
+                        
+                        # ОПТИМИЗАЦИЯ: Временно закомментирована для полного парсинга января
+                        # if latest_known_date and date:
+                        #     if date <= latest_known_date:
+                        #         print(f"  [Review {rev_index}] Достигнута известная дата ({date} <= {latest_known_date}), останавливаем парсинг этого отделения", flush=True)
+                        #         break
+
                         
                         # Анализ тегов через Mistral API
                         print(f"  [Review {rev_index}] Определяем теги...", flush=True)
@@ -290,22 +287,11 @@ def parse_reviews():
         context.close()
         browser.close()
 
-    # Объединяем новые отзывы со старыми
+    # Сохраняем ТОЛЬКО новые отзывы за январь
     if all_reviews:
         new_reviews_df = pd.DataFrame(all_reviews)
-        
-        # Если файл существует, загружаем старые отзывы и объединяем
-        if os.path.exists(output_csv):
-            try:
-                existing_df = pd.read_csv(output_csv)
-                # Объединяем старые и новые отзывы
-                final_df = pd.concat([existing_df, new_reviews_df], ignore_index=True)
-                print(f"Объединено: {len(existing_df)} старых + {len(new_reviews_df)} новых = {len(final_df)} всего", flush=True)
-            except Exception as e:
-                print(f"Ошибка при загрузке старых отзывов, сохраняем только новые: {e}", flush=True)
-                final_df = new_reviews_df
-        else:
-            final_df = new_reviews_df
+        final_df = new_reviews_df
+        print(f"Подготовлено {len(final_df)} отзывов за январь", flush=True)
         
         # Добавляем колонку GOSB (нужно и для отчета, и для сохранения)
         print("Обновление колонки GOSB...", flush=True)

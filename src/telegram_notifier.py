@@ -15,8 +15,9 @@ SUBSCRIBERS_PATH = Path(__file__).parent.parent / "subscribers.txt"
 
 def load_config():
     """Загружает конфигурацию из config.json"""
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:
         return json.load(f)
+
 
 def load_subscribers():
     """
@@ -133,7 +134,8 @@ def process_subscriptions():
     try:
         asyncio.run(process_subscriptions_async())
     except Exception as e:
-        print(f"❌ Ошибка обработки подписок: {e}")
+        print(f"Error processing subscriptions: {e}")
+
 
 def format_report(df):
     """

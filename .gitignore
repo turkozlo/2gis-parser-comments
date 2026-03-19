@@ -10,6 +10,7 @@ env/
 # Project specific
 config.json
 *.csv
+!sberbank_DVB_VSP.csv
 *.xlsx
 *.txt
 !requirements.txt

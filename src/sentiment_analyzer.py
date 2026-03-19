@@ -11,7 +11,8 @@ CONFIG_PATH = Path(__file__).parent.parent / "config.json"
 
 def load_config():
     """Загружает конфигурацию из config.json"""
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:
+
         return json.load(f)
 
 # Инициализация клиента Mistral
@@ -77,6 +78,16 @@ SYSTEM_PROMPT = """Ты - эксперт по анализу отзывов кл
 Отзыв: "Долго ждал, грязно, холодно"
 Ответ: #Обслуживание, #Состояние_офиса"""
 
+import time
+
+# ... imports ...
+
+# ... config loading ...
+
+# ... client init ...
+
+# ... system prompt ...
+
 def analyze_tags(review_text: str) -> str:
     """
     Определяет подходящие теги для отзыва через Mistral API
@@ -94,21 +105,36 @@ def analyze_tags(review_text: str) -> str:
     if not review_text or not review_text.strip():
         return "#Позитивное/без_комментария"
     
-    try:
-        messages = [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Отзыв: {review_text}")
-        ]
-        
-        response = client.invoke(messages)
-        result = response.content.strip()
-        
-        # Проверка что ответ содержит хотя бы один тег с решеткой
-        if "#" in result:
-            return result
-        else:
-            return "#Позитивное/без_комментария"
+    max_retries = 5
+    current_delay = 2.0
+
+    for attempt in range(max_retries + 1):
+        try:
+            messages = [
+                SystemMessage(content=SYSTEM_PROMPT),
+                HumanMessage(content=f"Отзыв: {review_text}")
+            ]
             
-    except Exception as e:
-        print(f"Ошибка при анализе отзыва: {e}", flush=True)
-        return "#Прочее"
+            response = client.invoke(messages)
+            result = response.content.strip()
+            
+            # Проверка что ответ содержит хотя бы один тег с решеткой
+            if "#" in result:
+                return result
+            else:
+                return "#Позитивное/без_комментария"
+                
+        except Exception as e:
+            error_str = str(e)
+            # Проверка на Rate Limit (429) и Too Many Requests
+            if "429" in error_str or "Too Many Requests" in error_str:
+                if attempt < max_retries:
+                    print(f"Mistral Rate Limit hit. Retrying in {current_delay}s...", flush=True)
+                    time.sleep(current_delay)
+                    current_delay *= 2
+                    continue
+            
+            print(f"Ошибка при анализе отзыва: {e}", flush=True)
+            return "#Прочее"
+    
+    return "#Прочее"
