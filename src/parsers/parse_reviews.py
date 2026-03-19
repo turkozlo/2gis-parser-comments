@@ -5,6 +5,7 @@ import re
 import datetime
 import os
 import sys
+import argparse
 from pathlib import Path
 
 # Добавляем корневую директорию проекта в путь
@@ -55,9 +56,9 @@ def parse_date(date_str):
         
     return date_str
 
-def parse_reviews():
+def parse_reviews(start_date, end_date):
     input_csv = 'sberbank_DVB_VSP.csv'
-    output_csv = 'sberbank_reviews_january_2026.csv'  # Dedicated file for January
+    output_csv = f'sberbank_reviews_{start_date}_to_{end_date}.csv'  # Dedicated file for selected period
     
     # Обработка новых подписчиков (все /start команды что пришли пока бот был выключен)
     print("=" * 60)
@@ -66,7 +67,7 @@ def parse_reviews():
     process_subscriptions()
     
     print("\n" + "=" * 60)
-    print("ПАРСИНГ ОТЗЫВОВ (ТОЛЬКО ЯНВАРЬ 2026)")
+    print(f"ПАРСИНГ ОТЗЫВОВ (С {start_date} ПО {end_date})")
     print("=" * 60 + "\n")
     
     try:
@@ -235,13 +236,13 @@ def parse_reviews():
                         else:
                             print(f"  [Review {rev_index}] No avatar found in review", flush=True)
 
-                        # ФИЛЬТР ПО ДАТЕ (Январь 2026)
+                        # ФИЛЬТР ПО ДАТЕ
                         if date:
-                            if date > "2026-01-31":
-                                print(f"  [Review {rev_index}] Отзыв новее января 2026 ({date}), пропускаем...", flush=True)
+                            if date > end_date:
+                                print(f"  [Review {rev_index}] Отзыв новее {end_date} ({date}), пропускаем...", flush=True)
                                 continue
-                            if date < "2026-01-01":
-                                print(f"  [Review {rev_index}] Достигнута дата до января 2026 ({date}), останавливаем парсинг этого отделения", flush=True)
+                            if date < start_date:
+                                print(f"  [Review {rev_index}] Достигнута дата до {start_date} ({date}), останавливаем парсинг этого отделения", flush=True)
                                 break
                         
                         # ОПТИМИЗАЦИЯ: Временно закомментирована для полного парсинга января
@@ -287,11 +288,11 @@ def parse_reviews():
         context.close()
         browser.close()
 
-    # Сохраняем ТОЛЬКО новые отзывы за январь
+    # Сохраняем ТОЛЬКО новые отзывы за выбранный период
     if all_reviews:
         new_reviews_df = pd.DataFrame(all_reviews)
         final_df = new_reviews_df
-        print(f"Подготовлено {len(final_df)} отзывов за январь", flush=True)
+        print(f"Подготовлено {len(final_df)} отзывов за период {start_date} - {end_date}", flush=True)
         
         # Добавляем колонку GOSB (нужно и для отчета, и для сохранения)
         print("Обновление колонки GOSB...", flush=True)
@@ -337,5 +338,30 @@ def parse_reviews():
     else:
         print("Нет новых отзывов для добавления", flush=True)
 
+def get_date_range():
+    parser = argparse.ArgumentParser(description="Парсер отзывов 2GIS")
+    parser.add_argument("--start", type=str, help="Начальная дата (ГГГГ-ММ-ДД)")
+    parser.add_argument("--end", type=str, help="Конечная дата (ГГГГ-ММ-ДД)")
+    
+    args, _ = parser.parse_known_args()
+    
+    start_date = args.start
+    end_date = args.end
+    
+    if not start_date:
+        start_date = input("Введите начальную дату (ГГГГ-ММ-ДД, например 2026-01-01): ").strip()
+    if not end_date:
+        end_date = input("Введите конечную дату (ГГГГ-ММ-ДД, например 2026-01-31): ").strip()
+        
+    try:
+        datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        datetime.datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        print("Ошибка: Неверный формат даты. Используйте ГГГГ-ММ-ДД!")
+        sys.exit(1)
+        
+    return start_date, end_date
+
 if __name__ == "__main__":
-    parse_reviews()
+    start_date, end_date = get_date_range()
+    parse_reviews(start_date, end_date)
